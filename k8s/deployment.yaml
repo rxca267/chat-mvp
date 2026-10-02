@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-mvp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chat-mvp
+  template:
+    metadata:
+      labels:
+        app: chat-mvp
+    spec:
+      containers:
+        - name: chat-mvp
+          image: ghcr.io/your-org/chat-mvp:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: chat-secrets
+                  key: jwt-secret
+            - name: DB_HOST
+              value: postgres.default.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: chat_app
+            - name: DB_USER
+              value: chat_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: chat-secrets
+                  key: db-password
+            - name: REDIS_HOST
+              value: redis.default.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: APP_BASE_URL
+              value: https://chat.example.com
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-mvp-service
+spec:
+  selector:
+    app: chat-mvp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: LoadBalancer
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat-mvp-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: chat.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-mvp-service
+                port:
+                  number: 80
